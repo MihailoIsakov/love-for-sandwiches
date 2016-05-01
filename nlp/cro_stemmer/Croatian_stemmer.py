@@ -45,7 +45,8 @@ def korjenuj(pojavnica):
 				return dioba.group(1)
 	return pojavnica
 	
-if __name__=='__main__':
+@profile
+def main():
 	if len(sys.argv)!=3:
 		print 'Usage: python Croatian_stemmer.py input_file output_file'
 		print 'input_file should be an utf8-encoded text file which is then tokenized, stemmed and written in the output_file in a tab-separated fashion.'
@@ -59,3 +60,7 @@ if __name__=='__main__':
 			continue
 		output_file.write((token+'\t'+korjenuj(transformiraj(token.lower()))+'\n').encode('utf8'))
 	output_file.close()
+
+if __name__=='__main__':
+    main()
+
