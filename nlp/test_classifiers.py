@@ -58,10 +58,31 @@ def test_high_prob_predictions(proba, y, min_cert, prnt, cls_name):
     return error, count
 
 
+def test_high_prob_predictions_print_errors(proba, y, min_cert, originals):
+    """
+    Tests only the probabilities above min_cert.
+    """
+    assert len(proba) == len(y) == len(originals)
+    for p, l, text in zip(proba, y, originals):
+        if p >= min_cert or p <= 1 - min_cert:
+            if np.round(p) != l:
+                print p, l, text
+
+    #indices = np.logical_or(proba >= min_cert, proba <= 1 - min_cert)
+
+    #error = np.mean(np.round(proba[indices]) == y[indices])
+    #count = float(np.sum(indices)) / len(indices) * 100
+
+    #for idx in test[np.round(proba[indices]) != y[indices]]:
+        #print idx
+
+    #return error, count
+
+
 def knn_predict(X_train, y_train, X_test, k=20):
     from sklearn.neighbors import KNeighborsClassifier
 
-    neigh = KNeighborsClassifier(n_neighbors=k, algorithm='brute', metric='cosine')
+    neigh = KNeighborsClassifier(n_neighbors=k, algorithm='brute', weights='distance', metric='cosine')
     neigh.fit(X_train, y_train)
 
     return neigh.predict_proba(X_test)[:, 1]
@@ -88,7 +109,7 @@ def svm_predict(X_train, y_train, X_test):
     return clf.predict_proba(X_test)[:, 1]
 
 
-cutoff = 0.8
+cutoff = 0.87
 
 k_fold = KFold(X.shape[0], n_folds=10, shuffle=True)
 for train, test in k_fold:
@@ -96,16 +117,18 @@ for train, test in k_fold:
     y_train = labels[train]
     X_test = X[test] 
     y_test = labels[test]
+    o_test = [originals[x] for x in test]
     
     #proba = knn_predict(X_train, y_train, X_test, k=20)
     #test_high_prob_predictions(proba, y_test, cutoff, True, "KNN")
 
     proba = naive_bayes_predict(X_train, y_train, X_test)
-    test_high_prob_predictions(proba, y_test, cutoff, True, "NB")
+    #test_high_prob_predictions(proba, y_test, cutoff, True, "NB")
+    test_high_prob_predictions_print_errors(proba, y_test, cutoff, o_test)
 
 
-    proba = svm_predict(X_train[:500], y_train[:500], X_test)
-    test_high_prob_predictions(proba, y_test, cutoff, True, "SVM")
+    #proba = svm_predict(X_train[:500], y_train[:500], X_test)
+    #test_high_prob_predictions(proba, y_test, cutoff, True, "SVM")
 
     #proba = random_forest_predict(X_train, y_train, X_test)
     #test_high_prob_predictions(proba, y_test, cutoff, True, "RF")
