@@ -29,6 +29,7 @@ class IterativeNB(object):
         self.X_scraped = None
 
         self.vectorizer = self._build_vectorizer()
+        self.clf = MultinomialNB()
 
     @staticmethod
     def _build_vectorizer():
@@ -36,7 +37,7 @@ class IterativeNB(object):
         Builds a TF-IDF vectorizer with croatian stop words.
         Uses bigrams. Counts words appearing 2+ times.
         """
-        croatian_stop_words = set([u"a",u"ako",u"ali",u"bi",u"bih",u"bila",u"bili",u"bilo",u"bio",u"bismo",u"biste",u"biti",u"bumo",u"da",u"do",u"duž",u"ga",u"hoće",u"hoćemo",u"hoćete",u"hoćeš",u"hoću",u"i",u"iako",u"ih",u"ili",u"iz",u"ja",u"je",u"jedna",u"jedne",u"jedno",u"jer",u"jesam",u"jesi",u"jesmo",u"jest",u"jeste",u"jesu",u"jim",u"joj",u"još",u"ju",u"kada",u"kako",u"kao",u"koja",u"koje",u"koji",u"kojima",u"koju",u"kroz",u"li",u"me",u"mene",u"meni",u"mi",u"mimo",u"moj",u"moja",u"moje",u"mu",u"na",u"nad",u"nakon",u"nam",u"nama",u"nas",u"naš",u"naša",u"naše",u"našeg",u"ne",u"nego",u"neka",u"neki",u"nekog",u"neku",u"nema",u"netko",u"neće",u"nećemo",u"nećete",u"nećeš",u"neću",u"nešto",u"ni",u"nije",u"nikoga",u"nikoje",u"nikoju",u"nisam",u"nisi",u"nismo",u"niste",u"nisu",u"njega",u"njegov",u"njegova",u"njegovo",u"njemu",u"njezin",u"njezina",u"njezino",u"njih",u"njihov",u"njihova",u"njihovo",u"njim",u"njima",u"njoj",u"nju",u"no",u"o",u"od",u"odmah",u"on",u"ona",u"oni",u"ono",u"ova",u"pa",u"pak",u"po",u"pod",u"pored",u"prije",u"s",u"sa",u"sam",u"samo",u"se",u"sebe",u"sebi",u"si",u"smo",u"ste",u"su",u"sve",u"svi",u"svog",u"svoj",u"svoja",u"svoje",u"svom",u"ta",u"tada",u"taj",u"tako",u"te",u"tebe",u"tebi",u"ti",u"to",u"toj",u"tome",u"tu",u"tvoj",u"tvoja",u"tvoje",u"u",u"uz",u"vam",u"vama",u"vas",u"vaš",u"vaša",u"vaše",u"već",u"vi",u"vrlo",u"za",u"zar",u"će",u"ćemo",u"ćete",u"ćeš",u"ću",u"što"])
+        croatian_stop_words = set([u"a", u"ako", u"ali", u"bi", u"bih", u"bila", u"bili", u"bilo", u"bio", u"bismo", u"biste", u"biti", u"bumo", u"da", u"do", u"duž", u"ga", u"hoće", u"hoćemo", u"hoćete", u"hoćeš", u"hoću", u"i", u"iako", u"ih", u"ili", u"iz", u"ja", u"je", u"jedna", u"jedne", u"jedno", u"jer", u"jesam", u"jesi", u"jesmo", u"jest", u"jeste", u"jesu", u"jim", u"joj", u"još", u"ju", u"kada", u"kako", u"kao", u"koja", u"koje", u"koji", u"kojima", u"koju", u"kroz", u"li", u"me", u"mene", u"meni", u"mi", u"mimo", u"moj", u"moja", u"moje", u"mu", u"na", u"nad", u"nakon", u"nam", u"nama", u"nas", u"naš", u"naša", u"naše", u"našeg", u"ne", u"nego", u"neka", u"neki", u"nekog", u"neku", u"nema", u"netko", u"neće", u"nećemo", u"nećete", u"nećeš", u"neću", u"nešto", u"ni", u"nije", u"nikoga", u"nikoje", u"nikoju", u"nisam", u"nisi", u"nismo", u"niste", u"nisu", u"njega", u"njegov", u"njegova", u"njegovo", u"njemu", u"njezin", u"njezina", u"njezino", u"njih", u"njihov", u"njihova", u"njihovo", u"njim", u"njima", u"njoj", u"nju", u"no", u"o", u"od", u"odmah", u"on", u"ona", u"oni", u"ono", u"ova", u"pa", u"pak", u"po", u"pod", u"pored", u"prije", u"s", u"sa", u"sam", u"samo", u"se", u"sebe", u"sebi", u"si", u"smo", u"ste", u"su", u"sve", u"svi", u"svog", u"svoj", u"svoja", u"svoje", u"svom", u"ta", u"tada", u"taj", u"tako", u"te", u"tebe", u"tebi", u"ti", u"to", u"toj", u"tome", u"tu", u"tvoj", u"tvoja", u"tvoje", u"u", u"uz", u"vam", u"vama", u"vas", u"vaš", u"vaša", u"vaše", u"već", u"vi", u"vrlo", u"za", u"zar", u"će", u"ćemo", u"ćete", u"ćeš", u"ću", u"što"])
 
         # vectorize the text
         vectorizer = TfidfVectorizer(
@@ -76,6 +77,11 @@ class IterativeNB(object):
         # labels as a numpy array
         self.labels = np.array([int(float(x)) for x in self.labels])
 
+        # convert to tuples for immutability
+        self.corpus = tuple(self.corpus)
+        self.labels = tuple(self.labels)
+        self.scraped = tuple(self.scraped)
+
     def build_test_set(self):
         """
         The training set takes the first self._train_len comments and labels.
@@ -109,9 +115,12 @@ class IterativeNB(object):
     def classify(self):
         """
         Create a Naive Bayes classifier and fit it on the X_train, labels_train pair.
+        Run the classifier on X_train, X_test, and X_scraped.
         """
-        self.clf = MultinomialNB()
+        # fit the classifier
         self.clf.fit(self.X_train, self.labels_train)
 
-
+        self.y_train = self.clf.predict_proba(self.X_train)
+        self.y_test = self.clf.predict_proba(self.X_test)
+        self.y_scraped = self.clf.predict_proba(self.X_scraped)
 
