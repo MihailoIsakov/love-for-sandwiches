@@ -1,11 +1,16 @@
 # -*- coding: utf-8 -*-
 
 import numpy as np
-from sklearn.cross_validation import KFold
 from sklearn.feature_extraction.text import TfidfVectorizer
 from sklearn.naive_bayes import MultinomialNB
 
+from sklearn.metrics import accuracy_score
+
 import bald_latin
+
+
+def round(labels):
+    return np.round(labels).astype(np.int)
 
 
 class IterativeNB(object):
@@ -82,7 +87,7 @@ class IterativeNB(object):
         self.labels = tuple(self.labels)
         self.scraped = tuple(self.scraped)
 
-    def build_test_set(self):
+    def _build_test_set(self):
         """
         The training set takes the first self._train_len comments and labels.
         The test set receives every comment after train_len.
@@ -90,20 +95,21 @@ class IterativeNB(object):
         self.corpus_test = self.corpus[self._train_len:]
         self.labels_test = self.labels[self._train_len:]
 
-    def build_next_training_set(self, scraped_indices=None, scraped_labels=None):
+    def _build_next_training_set(self, scraped_indices=None, scraped_labels=None):
         """
         Creates the next training set from the first self._train_len comments,
         and a subset of scraped comments.
         The indices of scraped comments are passed in, along with their current labels.
         The labels of scraped comments may change during further classifications.
         """
-        self.corpus_train = self.corpus[:train_len]
-        self.labels_train = self.labels[:train_len]
-        
+        self.corpus_train = list(self.corpus[:self._train_len])
+        self.labels_train = list(self.labels[:self._train_len])
+
         if scraped_indices is not None and len(scraped_indices) > 0:
             self.corpus_train += [self.scraped[x] for x in scraped_indices]
+            self.labels_train += scraped_labels
 
-    def vectorize(self):
+    def vectorize_all_sets(self):
         """
         Fit the vectorizer on the training set, get the TF-IDF vectors
         for the training set, the test set, and the unlabeled comments.
@@ -120,7 +126,54 @@ class IterativeNB(object):
         # fit the classifier
         self.clf.fit(self.X_train, self.labels_train)
 
-        self.y_train = self.clf.predict_proba(self.X_train)
-        self.y_test = self.clf.predict_proba(self.X_test)
-        self.y_scraped = self.clf.predict_proba(self.X_scraped)
+        y_train = self.clf.predict_proba(self.X_train)
+        y_test = self.clf.predict_proba(self.X_test)
+        y_scraped = self.clf.predict_proba(self.X_scraped)
 
+        return y_train, y_test, y_scraped
+
+    def prune_comments(y_pred, threshold=0.9):
+        """
+        Returns the indices of the comments with the highest certainty classifications.
+        """
+        indices = np.logical_or(y_pred >= threshold, y_pred <= 1 - threshold)
+        return indices
+
+    def train_classifier(self, iterations=100, prnt=True):
+        """
+        Iteratively retrains the classifier on the original training set and newly labeled comments from the scraped dataset.
+
+        1. Set up the data, create the test set
+        2. Create a new training set from the original training set and the most certain comments from the scraped dataset
+        3. Vectorize the data, train the classifier
+        4. Run the classifier on the scraped data
+        5. Go to 2.
+        """
+        if prnt: print("Loading the dataset")
+        self.load_dataset()
+        self._build_test_set()
+
+        # for the first iteration we don't use any of the unlabeled comments
+        best_indices = None
+        y_scraped = None
+
+        # run the classification for n iterations
+        for iter in range(iterations): 
+            if prnt: 
+                print("Running iteration #{}".format(iter))
+                
+            self._build_next_training_set(best_indices, y_scraped)
+
+            # fit the vectorizer on the training set, transform the test set and scraped
+            if prnt:
+                print("\tVectorizing data")
+            self.vectorize_all_sets()
+
+            # fit classifier on the (X_train, y_train), classify all three sets
+            if prnt:
+                print("\tClassifying three sets")
+            y_train, y_test, y_scraped = self.classify()
+            y_train, y_test, y_scraped = round(y_train), round(y_test), round(y_scraped)
+
+            best_indices = self.prune_comments(y_scraped)
+            y_scraped = round(y_scraped)
