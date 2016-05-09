@@ -70,6 +70,10 @@ class IterativeNB(object):
         self.corpus = open('dataset/lns_stemmed.txt', 'r').readlines()
         self.labels = open('dataset/lns_labels.txt', 'r').readlines()
 
+        # Load the slobodno-vreme category comments and create their not-bot labels
+        self.vreme = open('dataset/slobodno_vreme_stemmed.txt', 'r').readlines()
+        self.vreme_labels = [0 for x in range(len(self.vreme))]
+
         # Load the unlabeled comments
         self.scraped = open('dataset/stemmed.txt', 'r').readlines()
         if max_scraped is not None and max_scraped > 0:
@@ -80,6 +84,8 @@ class IterativeNB(object):
         self.corpus = bald_latin.remove_serbian_accents(self.corpus)
         self.scraped, _ = bald_latin.remove_cyrillic_comments(self.scraped, range(len(self.scraped)))
         self.scraped = bald_latin.remove_serbian_accents(self.scraped)
+        self.vreme, self.vreme_labels = bald_latin.remove_cyrillic_comments(self.vreme, self.vreme_labels)
+        self.vreme = bald_latin.remove_serbian_accents(self.vreme)
 
         # labels as a numpy array
         self.labels = np.array([int(float(x)) for x in self.labels])
@@ -256,5 +262,5 @@ class IterativeNB(object):
             #self.test_best_clf(self.labels_test, y_test, threshold=threshold)
 
             #best_indices, y_scraped = self.pthreshold=thresholdrune_comments(y_scraped, threshold=threshold, prnt=prnt)
-            best_indices, y_scraped = self.prune_n_best(y_scraped, iter * 200, prnt=prnt)
+            best_indices, y_scraped = self.prune_n_best(y_scraped, iter * 50, prnt=prnt)
             y_scraped = round(y_scraped)
