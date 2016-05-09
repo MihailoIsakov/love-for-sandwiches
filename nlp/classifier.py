@@ -4,7 +4,7 @@ import numpy as np
 from sklearn.feature_extraction.text import TfidfVectorizer
 from sklearn.naive_bayes import MultinomialNB
 
-from sklearn.metrics import accuracy_score, recall_score, precision_score
+from sklearn.metrics import accuracy_score, recall_score, precision_score, confusion_matrix
 
 import bald_latin
 
@@ -169,43 +169,53 @@ class IterativeNB(object):
 
         return indices, labels
 
+    def prune_n_best(self, y_pred, n, prnt=False):
+        best = np.maximum(y_pred, 1 - y_pred)
+        n_indices = np.argsort(-best)[:n]
+
+        labels = round(y_pred[n_indices])
+
+        return n_indices, labels
+
     def test_clf(self, y_true, y_pred, prnt=True):
         y_pred = round(np.copy(y_pred))
-        accuracy = accuracy_score(y_true, y_pred)
-        precision = precision_score(y_true, y_pred)
-        recall = recall_score(y_true, y_pred)
+        #accuracy = accuracy_score(y_true, y_pred)
+        #precision = precision_score(y_true, y_pred)
+        #recall = recall_score(y_true, y_pred)
 
-        bots_in_test = np.sum(y_true) + 0.0
-        nots_in_test = y_true.shape[0] - bots_in_test
+        #bots_in_test = np.sum(y_true) + 0.0
+        #nots_in_test = y_true.shape[0] - bots_in_test
 
         if prnt:
-            print("\t Bots/nots: {}, bots: {}, nots: {}".format(bots_in_test / nots_in_test, bots_in_test, nots_in_test)) 
-            print("\tAccuracy on the test set:  {}".format(accuracy))
-            print("\tPrecision on the test set: {}".format(precision))
-            print("\tRecall on the test set:    {}".format(recall))
+            print confusion_matrix(y_true, y_pred)
+            #print("\t Bots/nots: {}, bots: {}, nots: {}".format(bots_in_test / nots_in_test, bots_in_test, nots_in_test)) 
+            #print("\tAccuracy on the test set:  {}".format(accuracy))
+            #print("\tPrecision on the test set: {}".format(precision))
+            #print("\tRecall on the test set:    {}".format(recall))
 
-        return accuracy, precision, recall
+        #return accuracy, precision, recall
 
     def test_best_clf(self, y_true, y_pred, threshold, prnt=True):
         indices = np.argwhere(np.logical_or(y_pred >= threshold, y_pred <= 1 - threshold))[:, 0]
         y_pred = round(y_pred[indices])
         y_true = y_true[indices]
 
-        accuracy = accuracy_score(y_true, y_pred)
-        precision = precision_score(y_true, y_pred)
-        recall = recall_score(y_true, y_pred)
+        #accuracy = accuracy_score(y_true, y_pred)
+        #precision = precision_score(y_true, y_pred)
+        #recall = recall_score(y_true, y_pred)
 
-        bots_in_test = np.sum(y_true) + 0.0
-        nots_in_test = y_true.shape[0] - bots_in_test
+        #bots_in_test = np.sum(y_true) + 0.0
+        #nots_in_test = y_true.shape[0] - bots_in_test
    
         if prnt:
-            print("\t Classified: {}".format(len(indices)))
-            print("\t Bots/nots: {}, bots: {}, nots: {}".format(nots_in_test / bots_in_test, bots_in_test, nots_in_test)) 
-            print("\tBest accuracy on the test set:  {}".format(accuracy))
-            print("\tBest precision on the test set: {}".format(precision))
-            print("\tBest recall on the test set:    {}".format(recall))
+            print confusion_matrix(y_true, y_pred)
+            #print("\t Classified: {}".format(len(indices)))
+            #print("\t Bots/nots: {}, bots: {}, nots: {}".format(nots_in_test / bots_in_test, bots_in_test, nots_in_test)) 
+            #print("\tBest accuracy on the test set:  {}".format(accuracy))
+            #print("\tBest precision on the test set: {}".format(precision))
+            #print("\tBest recall on the test set:    {}".format(recall))
 
-        return accuracy, precision, recall
+        #return accuracy, precision, recall
 
     def train_classifier(self, threshold=0.91, max_scraped=None, iterations=100, prnt=True):
         """
@@ -235,7 +245,7 @@ class IterativeNB(object):
             print "\tLength of the training set: {}".format(len(self.corpus_train))
 
             # fit the vectorizer on the training set, transform the test set and scraped
-            self.vectorize_sets(prnt=True)
+            self.vectorize_sets(prnt=False)
 
             # fit classifier on the (X_train, y_train), classify all three sets
             if prnt:
@@ -243,7 +253,8 @@ class IterativeNB(object):
             y_train, y_test, y_scraped = self.classify()
 
             self.test_clf(self.labels_test, y_test)
-            self.test_best_clf(self.labels_test, y_test, threshold=threshold)
+            #self.test_best_clf(self.labels_test, y_test, threshold=threshold)
 
-            best_indices, y_scraped = self.prune_comments(y_scraped, threshold=threshold, prnt=prnt)
+            #best_indices, y_scraped = self.pthreshold=thresholdrune_comments(y_scraped, threshold=threshold, prnt=prnt)
+            best_indices, y_scraped = self.prune_n_best(y_scraped, iter * 200, prnt=prnt)
             y_scraped = round(y_scraped)
