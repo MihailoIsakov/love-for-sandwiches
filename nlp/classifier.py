@@ -48,7 +48,7 @@ class IterativeNB(object):
         vectorizer = TfidfVectorizer(
             strip_accents="unicode",
             lowercase=True,
-            ngram_range=(1, 2),  # unigrams and bigrams
+            ngram_range=(1, 3),  # unigrams and bigrams
             min_df=2,  # words must occur 2+ times to be counted
             norm='l2',
             smooth_idf=True,
@@ -164,6 +164,7 @@ class IterativeNB(object):
         indices = np.argwhere(np.logical_or(y_pred >= threshold, y_pred <= 1 - threshold))[:, 0]
         labels = round(y_pred[indices])
         if prnt: 
+            print("\tPrune comments - len(indices): {}".format(len(indices)))
             print("\t{} comments added to the training set".format(len(indices)))
 
         return indices, labels
@@ -176,7 +177,7 @@ class IterativeNB(object):
 
         bots_in_test = np.sum(y_true) + 0.0
         nots_in_test = y_true.shape[0] - bots_in_test
-        
+
         if prnt:
             print("\t Bots/nots: {}, bots: {}, nots: {}".format(bots_in_test / nots_in_test, bots_in_test, nots_in_test)) 
             print("\tAccuracy on the test set:  {}".format(accuracy))
@@ -196,8 +197,9 @@ class IterativeNB(object):
 
         bots_in_test = np.sum(y_true) + 0.0
         nots_in_test = y_true.shape[0] - bots_in_test
-        
+   
         if prnt:
+            print("\t Classified: {}".format(len(indices)))
             print("\t Bots/nots: {}, bots: {}, nots: {}".format(nots_in_test / bots_in_test, bots_in_test, nots_in_test)) 
             print("\tBest accuracy on the test set:  {}".format(accuracy))
             print("\tBest precision on the test set: {}".format(precision))
@@ -205,7 +207,7 @@ class IterativeNB(object):
 
         return accuracy, precision, recall
 
-    def train_classifier(self, threshold=0.91, iterations=100, prnt=True):
+    def train_classifier(self, threshold=0.91, max_scraped=None, iterations=100, prnt=True):
         """
         Iteratively retrains the classifier on the original training set and newly labeled comments from the scraped dataset.
 
@@ -216,7 +218,7 @@ class IterativeNB(object):
         5. Go to 2.
         """
         if prnt: print("Loading the dataset")
-        self.load_dataset(max_scraped=10**6)
+        self.load_dataset(max_scraped=max_scraped)
         self._build_test_set()
         self.fit_vectorizer(prnt=True)
 
@@ -228,7 +230,7 @@ class IterativeNB(object):
         for iter in range(iterations): 
             if prnt: 
                 print("Running iteration #{}".format(iter))
-                
+
             self._build_next_training_set(best_indices, y_scraped)
             print "\tLength of the training set: {}".format(len(self.corpus_train))
 
