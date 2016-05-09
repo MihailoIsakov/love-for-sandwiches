@@ -97,12 +97,13 @@ class IterativeNB(object):
         self.corpus_test = self.corpus[self._train_len:]
         self.labels_test = self.labels[self._train_len:]
 
-    def _build_next_training_set(self, scraped_indices=None, scraped_labels=None):
+    def _build_next_training_set(self, scraped_indices=None, scraped_labels=None, weight=0.05):
         """
         Creates the next training set from the first self._train_len comments,
         and a subset of scraped comments.
         The indices of scraped comments are passed in, along with their current labels.
         The labels of scraped comments may change during further classifications.
+        The weights of the new additions have the value of weight.
         """
         self.corpus_train = list(self.corpus[:self._train_len])
         self.labels_train = list(self.labels[:self._train_len])
@@ -111,6 +112,11 @@ class IterativeNB(object):
             assert scraped_indices.shape[0] == len(scraped_labels)
             self.corpus_train += [self.scraped[x] for x in scraped_indices]
             self.labels_train = self.labels_train + list(scraped_labels)
+        
+        #weight = 3.0 / np.sqrt(len(self.labels_train))
+        # create a weight array
+        self.weights = np.ones(len(self.labels_train))
+        self.weights[self._train_len:] = weight
 
         assert len(self.corpus_train) == len(self.labels_train)
 
@@ -135,10 +141,9 @@ class IterativeNB(object):
         Create a Naive Bayes classifier and fit it on the X_train, labels_train pair.
         Run the classifier on X_train, X_test, and X_scraped.
         """
-        print self.X_train.shape[0], len(self.labels_train)
         assert self.X_train.shape[0] == len(self.labels_train)
         # fit the classifier
-        self.clf.fit(self.X_train, self.labels_train)
+        self.clf.fit(self.X_train, self.labels_train, sample_weight=self.weights)
 
         y_train = self.clf.predict_proba(self.X_train)[:, 1]
         y_test = self.clf.predict_proba(self.X_test)[:, 1]
@@ -146,7 +151,7 @@ class IterativeNB(object):
 
         return y_train, y_test, y_scraped
 
-    def prune_comments(self, y_pred, threshold=0.9, prnt=False):
+    def prune_comments(self, y_pred, threshold=0.92, prnt=False):
         """
         Returns the indices of the comments with the highest certainty classifications.
         """
@@ -162,15 +167,39 @@ class IterativeNB(object):
         accuracy = accuracy_score(y_true, y_pred)
         precision = precision_score(y_true, y_pred)
         recall = recall_score(y_true, y_pred)
+
+        bots_in_test = np.sum(y_true) + 0.0
+        nots_in_test = y_true.shape[0] - bots_in_test
         
         if prnt:
+            print("\t Bots/nots: {}, bots: {}, nots: {}".format(bots_in_test / nots_in_test, bots_in_test, nots_in_test)) 
             print("\tAccuracy on the test set:  {}".format(accuracy))
             print("\tPrecision on the test set: {}".format(precision))
             print("\tRecall on the test set:    {}".format(recall))
 
         return accuracy, precision, recall
 
-    def train_classifier(self, iterations=100, prnt=True):
+    def test_best_clf(self, y_true, y_pred, threshold, prnt=True):
+        indices = np.argwhere(np.logical_or(y_pred >= threshold, y_pred <= 1 - threshold))[:, 0]
+        y_pred = round(y_pred[indices])
+        y_true = y_true[indices]
+
+        accuracy = accuracy_score(y_true, y_pred)
+        precision = precision_score(y_true, y_pred)
+        recall = recall_score(y_true, y_pred)
+
+        bots_in_test = np.sum(y_true) + 0.0
+        nots_in_test = y_true.shape[0] - bots_in_test
+        
+        if prnt:
+            print("\t Bots/nots: {}, bots: {}, nots: {}".format(nots_in_test / bots_in_test, bots_in_test, nots_in_test)) 
+            print("\tBest accuracy on the test set:  {}".format(accuracy))
+            print("\tBest precision on the test set: {}".format(precision))
+            print("\tBest recall on the test set:    {}".format(recall))
+
+        return accuracy, precision, recall
+
+    def train_classifier(self, threshold=0.91, iterations=100, prnt=True):
         """
         Iteratively retrains the classifier on the original training set and newly labeled comments from the scraped dataset.
 
@@ -181,7 +210,7 @@ class IterativeNB(object):
         5. Go to 2.
         """
         if prnt: print("Loading the dataset")
-        self.load_dataset(max_scraped=100000)
+        self.load_dataset(max_scraped=None)
         self._build_test_set()
 
         # for the first iteration we don't use any of the unlabeled comments
@@ -205,6 +234,7 @@ class IterativeNB(object):
             y_train, y_test, y_scraped = self.classify()
 
             self.test_clf(self.labels_test, y_test)
+            self.test_best_clf(self.labels_test, y_test, threshold=threshold)
 
-            best_indices, y_scraped = self.prune_comments(y_scraped, prnt=prnt)
+            best_indices, y_scraped = self.prune_comments(y_scraped, threshold=threshold, prnt=prnt)
             y_scraped = round(y_scraped)
