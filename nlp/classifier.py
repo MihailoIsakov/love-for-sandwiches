@@ -120,15 +120,21 @@ class IterativeNB(object):
 
         assert len(self.corpus_train) == len(self.labels_train)
 
-    def vectorize_all_sets(self, prnt=False):
+    def fit_vectorizer(self, prnt=False):
         """
         Fit the vectorizer on the training set, get the TF-IDF vectors
         for the training set, the test set, and the unlabeled comments.
         """
         if prnt:
+            print("Vectorizer fitting the labeled and unlabeled set")
+
+        all_sets = self.corpus + self.scraped
+        self.vectorizer.fit(all_sets)
+
+    def vectorize_sets(self, prnt=False):
+        if prnt:
             print("\tVectorizing the training set")
-        #self.X_train = self.vectorizer.fit_transform(self.corpus_train).todense()
-        self.X_train = self.vectorizer.fit_transform(self.corpus_train)
+        self.X_train = self.vectorizer.transform(self.corpus_train)
         if prnt:
             print("\tVectorizing the test set")
         self.X_test = self.vectorizer.transform(self.corpus_test)
@@ -210,8 +216,9 @@ class IterativeNB(object):
         5. Go to 2.
         """
         if prnt: print("Loading the dataset")
-        self.load_dataset(max_scraped=None)
+        self.load_dataset(max_scraped=10**6)
         self._build_test_set()
+        self.fit_vectorizer(prnt=True)
 
         # for the first iteration we don't use any of the unlabeled comments
         best_indices = None
@@ -226,7 +233,7 @@ class IterativeNB(object):
             print "\tLength of the training set: {}".format(len(self.corpus_train))
 
             # fit the vectorizer on the training set, transform the test set and scraped
-            self.vectorize_all_sets(prnt=False)
+            self.vectorize_sets(prnt=True)
 
             # fit classifier on the (X_train, y_train), classify all three sets
             if prnt:
