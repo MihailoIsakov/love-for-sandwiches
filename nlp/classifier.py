@@ -48,8 +48,8 @@ class IterativeNB(object):
         vectorizer = TfidfVectorizer(
             strip_accents="unicode",
             lowercase=True,
-            ngram_range=(1, 3),  # unigrams and bigrams
-            min_df=2,  # words must occur 2+ times to be counted
+            ngram_range=(1, 2),  # unigrams and bigrams
+            min_df=100,  # words must occur 2+ times to be counted
             norm='l2',
             smooth_idf=True,
             use_idf=True,
@@ -57,14 +57,15 @@ class IterativeNB(object):
 
         return vectorizer
 
-    def load_dataset(self, train_len=4000, max_scraped=None):
+    def load_dataset(self, train_len=4000, add_nots=1000, max_scraped=None):
         """
         Load the corpus, labels and scraped comments into lists.
         Removes cyrillic and baldens corpus and scraped lists. 
         Rounds and converts the comments to ints.
         """
         # the number of samples for the training set
-        self._train_len = train_len
+        self._train_len = train_len + add_nots
+        self.add_nots = add_nots
 
         # Load the labeled dataset
         self.corpus = open('dataset/lns_stemmed.txt', 'r').readlines()
@@ -73,6 +74,10 @@ class IterativeNB(object):
         # Load the slobodno-vreme category comments and create their not-bot labels
         self.vreme = open('dataset/slobodno_vreme_stemmed.txt', 'r').readlines()
         self.vreme_labels = [0 for x in range(len(self.vreme))]
+
+        # add them to the corpus
+        self.corpus = self.vreme[:add_nots] + self.corpus
+        self.labels = self.vreme_labels[:add_nots] + self.labels
 
         # Load the unlabeled comments
         self.scraped = open('dataset/stemmed.txt', 'r').readlines()
@@ -84,8 +89,8 @@ class IterativeNB(object):
         self.corpus = bald_latin.remove_serbian_accents(self.corpus)
         self.scraped, _ = bald_latin.remove_cyrillic_comments(self.scraped, range(len(self.scraped)))
         self.scraped = bald_latin.remove_serbian_accents(self.scraped)
-        self.vreme, self.vreme_labels = bald_latin.remove_cyrillic_comments(self.vreme, self.vreme_labels)
-        self.vreme = bald_latin.remove_serbian_accents(self.vreme)
+        #self.vreme, self.vreme_labels = bald_latin.remove_cyrillic_comments(self.vreme, self.vreme_labels)
+        #self.vreme = bald_latin.remove_serbian_accents(self.vreme)
 
         # labels as a numpy array
         self.labels = np.array([int(float(x)) for x in self.labels])
@@ -103,7 +108,7 @@ class IterativeNB(object):
         self.corpus_test = self.corpus[self._train_len:]
         self.labels_test = self.labels[self._train_len:]
 
-    def _build_next_training_set(self, scraped_indices=None, scraped_labels=None, weight=0.05):
+    def _build_next_training_set(self, scraped_indices=None, scraped_labels=None, weight=0.01):
         """
         Creates the next training set from the first self._train_len comments,
         and a subset of scraped comments.
@@ -123,6 +128,7 @@ class IterativeNB(object):
         # create a weight array
         self.weights = np.ones(len(self.labels_train))
         self.weights[self._train_len:] = weight
+        self.weights[:self.add_nots] *= 0.3
 
         assert len(self.corpus_train) == len(self.labels_train)
 
@@ -185,19 +191,19 @@ class IterativeNB(object):
 
     def test_clf(self, y_true, y_pred, prnt=True):
         y_pred = round(np.copy(y_pred))
-        #accuracy = accuracy_score(y_true, y_pred)
-        #precision = precision_score(y_true, y_pred)
-        #recall = recall_score(y_true, y_pred)
+        accuracy = accuracy_score(y_true, y_pred)
+        precision = precision_score(y_true, y_pred)
+        recall = recall_score(y_true, y_pred)
 
-        #bots_in_test = np.sum(y_true) + 0.0
-        #nots_in_test = y_true.shape[0] - bots_in_test
+        bots_in_test = np.sum(y_true) + 0.0
+        nots_in_test = y_true.shape[0] - bots_in_test
 
         if prnt:
             print confusion_matrix(y_true, y_pred)
-            #print("\t Bots/nots: {}, bots: {}, nots: {}".format(bots_in_test / nots_in_test, bots_in_test, nots_in_test)) 
-            #print("\tAccuracy on the test set:  {}".format(accuracy))
-            #print("\tPrecision on the test set: {}".format(precision))
-            #print("\tRecall on the test set:    {}".format(recall))
+            print("\t Bots/nots: {}, bots: {}, nots: {}".format(bots_in_test / nots_in_test, bots_in_test, nots_in_test)) 
+            print("\tAccuracy on the test set:  {}".format(accuracy))
+            print("\tPrecision on the test set: {}".format(precision))
+            print("\tRecall on the test set:    {}".format(recall))
 
         #return accuracy, precision, recall
 
@@ -223,7 +229,7 @@ class IterativeNB(object):
 
         #return accuracy, precision, recall
 
-    def train_classifier(self, threshold=0.91, max_scraped=None, iterations=100, prnt=True):
+    def train_classifier(self, threshold=0.87, max_scraped=None, iterations=100, prnt=True):
         """
         Iteratively retrains the classifier on the original training set and newly labeled comments from the scraped dataset.
 
@@ -261,6 +267,6 @@ class IterativeNB(object):
             self.test_clf(self.labels_test, y_test)
             #self.test_best_clf(self.labels_test, y_test, threshold=threshold)
 
-            #best_indices, y_scraped = self.pthreshold=thresholdrune_comments(y_scraped, threshold=threshold, prnt=prnt)
-            best_indices, y_scraped = self.prune_n_best(y_scraped, iter * 50, prnt=prnt)
+            #best_indices, y_scraped = self.prune_comments(y_scraped, threshold=threshold, prnt=prnt)
+            best_indices, y_scraped = self.prune_n_best(y_scraped, iter * 10000, prnt=prnt)
             y_scraped = round(y_scraped)
